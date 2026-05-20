@@ -217,3 +217,48 @@ curl -X PATCH http://localhost:8000/tasks/<TASK_ID> \
   -H 'Content-Type: application/json' \
   -d '{"status":"in_progress"}'
 ```
+
+---
+
+## Despliegue en AWS Amazon ECS (Express Mode)
+
+AWS ECS en conjunto con la integración de Docker permite un despliegue directo a la nube utilizando comandos de Docker Compose. Para desplegar la aplicación, sigue estos pasos:
+
+1. **Configurar AWS CLI:**
+   Asegúrate de tener instalada y configurada la AWS CLI con tus credenciales.
+   ```bash
+   aws configure
+   ```
+
+2. **Crear un contexto de Docker para ECS:**
+   Utiliza Docker para crear un nuevo contexto que apunte a tu entorno de AWS.
+   ```bash
+   docker context create ecs my-ecs-context
+   ```
+   > Elige el perfil de AWS que configuraste o ingresa tus credenciales cuando se te indique.
+
+3. **Usar el contexto de ECS:**
+   Cambia al contexto recién creado para que los comandos operen sobre AWS.
+   ```bash
+   docker context use my-ecs-context
+   ```
+
+4. **Desplegar la aplicación:**
+   Ejecuta Docker Compose para que convierta el archivo `docker-compose.yml` en recursos de AWS (CloudFormation, ECS Fargate, etc.).
+   ```bash
+   docker compose up
+   ```
+
+5. **Revisar el estado:**
+   Puedes verificar los servicios activos y sus logs directamente con Docker.
+   ```bash
+   docker compose ps
+   docker compose logs
+   ```
+
+6. **Eliminar los recursos:**
+   Cuando ya no necesites la aplicación, puedes destruirla para evitar cargos extra:
+   ```bash
+   docker compose down
+   docker context use default
+   ```
