@@ -1,34 +1,45 @@
+"""Punto de entrada de la API REST de Tablo."""
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from strawberry.fastapi import GraphQLRouter
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
-from app.auth.router import router as auth_router
+from app.config import settings
 from app.database import engine
-from app.graphql.context import get_context
-from app.graphql.schema import schema
+from app.routers import auth, projects, tasks
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
-    # Las tablas ya existen en RDS — no las creamos aquí.
+async def lifespan(app: FastAPI):
+    # Verifica la conexión a la base de datos al arrancar.
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
     yield
     await engine.dispose()
 
 
-def create_app() -> FastAPI:
-    app = FastAPI(title="Tablo API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title=settings.APP_NAME,
+    description="API REST para Tablo, un clon de Trello (FastAPI + SQLAlchemy async).",
+    version="1.0.0",
+    lifespan=lifespan,
+)
 
-    app.include_router(auth_router)
+# CORS abierto para desarrollo; restringir en producción.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    graphql_app = GraphQLRouter(schema, context_getter=get_context)
-    app.include_router(graphql_app, prefix="/graphql")
-
-    @app.get("/health", tags=["meta"])
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
-
-    return app
+app.include_router(auth.router)
+app.include_router(projects.router)
+app.include_router(tasks.router)
 
 
-app = create_app()
+@app.get("/health", tags=["health"], summary="Health check")
+async def health() -> dict:
+    return {"status": "ok", "service": settings.APP_NAME}

@@ -1,26 +1,22 @@
-FROM python:3.12-slim
+FROM python:3.13-slim
 
+# No generar .pyc y salida sin buffer (mejores logs en contenedor).
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Dependencias del sistema mínimas para asyncpg/cryptography
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
+# Instalamos dependencias primero para aprovechar la caché de capas.
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
+# Copiamos el código de la aplicación.
 COPY app ./app
 
-# Usuario no-root
-RUN useradd --create-home --shell /bin/bash tablo \
-    && chown -R tablo:tablo /app
-USER tablo
+# Usuario sin privilegios.
+RUN useradd --create-home appuser
+USER appuser
 
 EXPOSE 8000
 

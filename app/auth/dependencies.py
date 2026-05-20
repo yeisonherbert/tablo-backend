@@ -1,49 +1,40 @@
+"""Dependencias de FastAPI para proteger los endpoints con JWT."""
+import uuid
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.jwt_handler import InvalidTokenError, extract_user_id
-from app.database import get_session
-from app.models import User
+from app.auth.jwt_handler import JWTError, decode_access_token
+from app.database import get_db
+from app.models.user import User
 
-bearer_scheme = HTTPBearer(auto_error=False)
+# `auto_error=True` => responde 403 automáticamente si falta el header.
+bearer_scheme = HTTPBearer(description="JWT emitido por POST /auth/login")
+
+_credentials_exc = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Credenciales inválidas o token expirado",
+    headers={"WWW-Authenticate": "Bearer"},
+)
 
 
 async def get_current_user(
-    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    session: AsyncSession = Depends(get_session),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
-    if creds is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Falta el header Authorization: Bearer <token>",
-        )
+    """Valida el JWT del header `Authorization: Bearer <token>` y devuelve el usuario."""
+    token = credentials.credentials
     try:
-        user_id = extract_user_id(creds.credentials)
-    except InvalidTokenError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)
-        ) from exc
+        payload = decode_access_token(token)
+        subject = payload.get("sub")
+        if subject is None:
+            raise _credentials_exc
+        user_id = uuid.UUID(subject)
+    except (JWTError, ValueError):
+        raise _credentials_exc
 
-    user = await session.get(User, user_id)
+    user = await db.get(User, user_id)
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="El usuario del token ya no existe",
-        )
+        raise _credentials_exc
     return user
-
-
-async def get_optional_user(
-    creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    session: AsyncSession = Depends(get_session),
-) -> User | None:
-    """Variante no estricta — usada por el contexto de GraphQL,
-    que delega la validación a las permissions de cada resolver."""
-    if creds is None:
-        return None
-    try:
-        user_id = extract_user_id(creds.credentials)
-    except InvalidTokenError:
-        return None
-    return await session.get(User, user_id)

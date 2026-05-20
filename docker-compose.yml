@@ -1,8 +1,14 @@
 services:
   api:
     build: .
+    container_name: tablo-api
     ports:
       - "8000:8000"
     env_file:
       - .env
     restart: unless-stopped
+    # La base de datos vive en AWS RDS, no se levanta localmente.
+    # Para hot-reload en desarrollo, descomenta el volumen y el command:
+    # volumes:
+    #   - ./app:/app/app
+    # command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

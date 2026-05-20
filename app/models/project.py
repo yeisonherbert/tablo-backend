@@ -1,20 +1,25 @@
+"""Modelo ORM de Proyecto (tabla `projects`) y tabla pivote `project_members`."""
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, List
 
-from sqlalchemy import Column, ForeignKey, String, Table, Text, TIMESTAMP, func
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    String,
+    Table,
+    Text,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.user import User
 
-if TYPE_CHECKING:
-    from app.models.task import Task
-    from app.models.user import User
-
-
-project_collaborators = Table(
-    "project_collaborators",
+# Tabla pivote N:M entre proyectos y usuarios participantes.
+project_members = Table(
+    "project_members",
     Base.metadata,
     Column(
         "project_id",
@@ -28,7 +33,7 @@ project_collaborators = Table(
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     ),
-    Column("joined_at", TIMESTAMP(timezone=True), server_default=func.now()),
+    Column("joined_at", DateTime(timezone=True), server_default=func.now()),
 )
 
 
@@ -36,30 +41,36 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=func.uuid_generate_v4(),
     )
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), server_default=func.now()
+        DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    owner: Mapped["User"] = relationship(
-        "User", back_populates="owned_projects", foreign_keys=[owner_id]
-    )
-    collaborators: Mapped[List["User"]] = relationship(
+    # Relaciones (carga selectin para que funcionen en contexto async).
+    owner: Mapped[User] = relationship("User", lazy="selectin")
+    members: Mapped[list[User]] = relationship(
         "User",
-        secondary=project_collaborators,
-        back_populates="collaborations",
+        secondary=project_members,
+        lazy="selectin",
     )
-    tasks: Mapped[List["Task"]] = relationship(
-        "Task", back_populates="project", cascade="all, delete-orphan"
+    tasks: Mapped[list["Task"]] = relationship(  # noqa: F821
+        "Task",
+        back_populates="project",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        order_by="Task.position",
     )
