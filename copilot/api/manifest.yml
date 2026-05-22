@@ -13,6 +13,7 @@ http:
   path: '/'
   # Custom health check: the app only exposes /health (/ returns 404).
   healthcheck: '/health'
+  alias: api-tablo.antana.com.pe # Optional custom domain name for your service. You can also specify this in the environment overrides below.
 
 # Configuration for your containers and service.
 image:
