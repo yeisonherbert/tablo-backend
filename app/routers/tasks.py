@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.task import TaskOut, TaskStatusUpdate
+from app.schemas.task import TaskOut, TaskStatusUpdate, TaskUpdate
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -52,3 +52,48 @@ async def update_task_status(
     await db.commit()
     await db.refresh(task)
     return task
+
+
+@router.put(
+    "/{task_id}/details",
+    response_model=TaskOut,
+    summary="Actualizar los detalles generales de una tarea",
+)
+async def update_task(
+    task_id: uuid.UUID,
+    payload: TaskUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Task:
+    task = await _get_task_for_user(task_id, current_user, db)
+
+    if payload.title is not None:
+        task.title = payload.title
+    if payload.description is not None:
+        task.description = payload.description
+    
+    # We update the assignee_id since it might be set to None or a new UUID
+    # Although pydantic model separates unset and None, it's easier to use model_dump(exclude_unset=True)
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(task, key, value)
+
+    await db.commit()
+    await db.refresh(task)
+    return task
+
+
+@router.delete(
+    "/{task_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar una tarea",
+)
+async def delete_task(
+    task_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    task = await _get_task_for_user(task_id, current_user, db)
+    await db.delete(task)
+    await db.commit()
+

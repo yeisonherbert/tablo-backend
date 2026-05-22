@@ -190,6 +190,48 @@ La API quedará en http://localhost:8000.
 
 ---
 
+## Cómo desplegar en AWS (con AWS Copilot)
+
+El repositorio está preconfigurado para ser desplegado usando [AWS Copilot CLI](https://aws.github.io/copilot-cli/). Copilot facilita el despliegue de contenedores en Amazon ECS con balanceadores de carga y logs ya configurados. 
+
+### Prerrequisitos
+1. Tener [AWS CLI](https://aws.amazon.com/es/cli/) instalado y configurado (`aws configure`).
+2. Tener [AWS Copilot CLI](https://aws.github.io/copilot-cli/docs/getting-started/install/) instalado.
+3. Asegurarte de estar en el directorio `backend`.
+
+### Ver los entornos actuales
+Para revisar los entornos desplegados o inicializados actualmente para la aplicación (`dev`, `prod`, etc.):
+```bash
+copilot env ls
+```
+
+### Desplegar y actualizar cambios
+Cualquier cambio que realices y guardes en tu código local se empaquetará dentro de una nueva imagen de Docker al realizar el siguiente comando. Simplemente indica el nombre del servicio (`api`) y el entorno al que quieres apuntar (por ejemplo `dev` o `prod`):
+```bash
+# Desplegar los cambios al entorno de desarrollo
+copilot svc deploy --name api --env dev
+```
+
+Este comando hará el *build* local de la imagen, la subirá a **Amazon ECR** y actualizará el servicio corriendo en **Amazon ECS** asegurando "Zero-downtime deployment".
+
+### Verificar el estado del servicio
+Una vez que el despliegue finalice, puedes comprobar el estado de tus contenedores, la revisión activa y si los *Health Checks* están pasando:
+```bash
+copilot svc status --name api --env dev
+```
+
+### Inicializar un entorno de producción (primera vez)
+Si el entorno `prod` aún no existe en Copilot y requieres desplegar en producción:
+```bash
+# Inicializar el entorno
+copilot env init --name prod --profile default --default-config
+
+# Desplegar el servicio hacia ese entorno
+copilot svc deploy --name api --env prod
+```
+
+---
+
 ## Prueba rápida (curl)
 
 ```bash

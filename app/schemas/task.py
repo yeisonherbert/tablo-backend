@@ -16,6 +16,14 @@ class TaskCreate(BaseModel):
     assignee_id: uuid.UUID | None = None
 
 
+class TaskUpdate(BaseModel):
+    """Cuerpo para actualizar los detalles generales de una tarea."""
+
+    title: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = None
+    assignee_id: uuid.UUID | None = None
+
+
 class TaskStatusUpdate(BaseModel):
     """Cuerpo para mover una tarjeta entre columnas del tablero."""
 
